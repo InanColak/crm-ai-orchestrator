@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(python:*)",
+      "Bash(pip:*)",
+      "Bash(pytest:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(docker:*)",
+      "Bash(docker-compose:*)",
+      "Bash(git:*)",
+      "Bash(uvicorn:*)",
+      "Bash(alembic:*)",
+      "Bash(ruff:*)",
+      "Bash(black:*)",
+      "Bash(tree:*)",
+      "Skill(backend)",
+      "Bash(./venv/Scripts/pip.exe install:*)",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(curl:*)",
+      "Bash(cat:*)",
+      "Bash(pkill:*)",
+      "Bash(dir:*)",
+      "Bash(venvScriptspip list)",
+      "Bash(findstr:*)",
+      "Bash(venvScriptspip install -r backendrequirements.txt)",
+      "Bash(\"venv/Scripts/python.exe\":*)",
+      "Bash(venv\\\\Scripts\\\\python:*)",
+      "Bash(venvScriptspython test_llm_service.py)",
+      "Bash(venv/Scripts/python:*)",
+      "Bash(timeout 10 curl:*)",
+      "Bash(python3:*)",
+      "Bash(venv\\\\Scripts\\\\python -m pytest:*)",
+      "Bash(.\\\\venv\\\\Scripts\\\\python.exe -m pytest:*)",
+      "Bash(C:\\\\Users\\\\hinan\\\\Documents\\\\crm-ai-orchestrator\\\\venv\\\\Scripts\\\\python.exe -m pytest backend/tests/test_task_extractor_agent.py -v)",
+      "Skill(langgraph)",
+      "Bash(xargs -d '\\\\n' git rm --cached)"
+    ]
+  }
+}

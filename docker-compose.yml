@@ -1,0 +1,101 @@
+# =============================================================================
+# CRM AI Orchestrator - Docker Compose (Development)
+# =============================================================================
+# Local development environment with hot reload
+# Usage:
+#   docker-compose up -d        # Start all services
+#   docker-compose logs -f      # Follow logs
+#   docker-compose down         # Stop all services
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend API (FastAPI)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: crm-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount entire project for correct Python imports (backend.app.*)
+      - .:/app
+      # Prevent overwriting container's venv
+      - /app/venv
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - PORT=8000
+      - HOST=0.0.0.0
+      # Supabase
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-}
+      # LLM Providers
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-anthropic}
+      # CRM
+      - HUBSPOT_ACCESS_TOKEN=${HUBSPOT_ACCESS_TOKEN:-}
+      - HUBSPOT_PORTAL_ID=${HUBSPOT_PORTAL_ID:-}
+      # Search
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      # Observability
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-crm-ai-orchestrator-dev}
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - crm-network
+
+  # ---------------------------------------------------------------------------
+  # Frontend (Next.js) - Placeholder for Phase 7
+  # ---------------------------------------------------------------------------
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #     target: development
+  #   container_name: crm-frontend
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #     - /app/.next
+  #   environment:
+  #     - NODE_ENV=development
+  #     - NEXT_PUBLIC_API_URL=http://localhost:8000
+  #     - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+  #     - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_KEY}
+  #   depends_on:
+  #     backend:
+  #       condition: service_healthy
+  #   networks:
+  #     - crm-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  crm-network:
+    driver: bridge
+    name: crm-ai-orchestrator-network
+
+# =============================================================================
+# Volumes (for persistent data if needed)
+# =============================================================================
+volumes:
+  backend-cache:
+    name: crm-backend-cache
