@@ -24,3 +24,8 @@ export {
   useDocumentSearch,
   useDocumentUsage,
 } from './useDocuments';
+
+export {
+  useSettings,
+  useSettingsHealth,
+} from './useSettings';

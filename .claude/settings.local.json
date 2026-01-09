@@ -36,7 +36,16 @@
       "Bash(.\\\\venv\\\\Scripts\\\\python.exe -m pytest:*)",
       "Bash(C:\\\\Users\\\\hinan\\\\Documents\\\\crm-ai-orchestrator\\\\venv\\\\Scripts\\\\python.exe -m pytest backend/tests/test_task_extractor_agent.py -v)",
       "Skill(langgraph)",
-      "Bash(xargs -d '\\\\n' git rm --cached)"
+      "Bash(xargs -d '\\\\n' git rm --cached)",
+      "Bash(venv\\\\Scripts\\\\python.exe:*)",
+      "Bash(powershell -Command \"$input | Select-Object -Last 30\")",
+      "Bash(powershell -Command:*)",
+      "Bash(find:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(powershell \"netstat -ano | Select-String '':8000''\")",
+      "Bash(cmd //c \"taskkill /PID 2672 /F\")",
+      "Bash(powershell:*)"
     ]
   }
 }

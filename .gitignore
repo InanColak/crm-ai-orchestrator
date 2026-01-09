@@ -243,3 +243,4 @@ ai-agent-dashboard/
 *.old
 *.orig
 .history/
+nul

@@ -279,6 +279,53 @@ export const documentsApi = {
 };
 
 // =============================================================================
+// SETTINGS API
+// =============================================================================
+
+export interface IntegrationStatus {
+  name: string;
+  status: string;
+  status_color: string;
+  details?: string | null;
+}
+
+export interface SettingsSection {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  items: IntegrationStatus[];
+}
+
+export interface SettingsStatusResponse {
+  sections: SettingsSection[];
+}
+
+export interface SettingsHealthResponse {
+  status: string;
+  version: string;
+  environment: string;
+  llm_provider: string;
+  integrations: Record<string, boolean>;
+}
+
+export const settingsApi = {
+  /**
+   * Get complete settings status
+   */
+  async getStatus(): Promise<SettingsStatusResponse> {
+    return apiFetch<SettingsStatusResponse>('/api/v1/settings/status');
+  },
+
+  /**
+   * Get settings health check
+   */
+  async getHealth(): Promise<SettingsHealthResponse> {
+    return apiFetch<SettingsHealthResponse>('/api/v1/settings/health');
+  },
+};
+
+// =============================================================================
 // HEALTH CHECK
 // =============================================================================
 
@@ -296,6 +343,7 @@ export const api = {
   workflow: workflowApi,
   approval: approvalApi,
   documents: documentsApi,
+  settings: settingsApi,
   health: healthApi,
 };
 

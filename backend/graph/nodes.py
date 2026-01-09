@@ -72,6 +72,63 @@ from backend.app.schemas.market_research import (
     NewsInsight,
     ConfidenceLevel,
 )
+from backend.app.schemas.seo_analysis import (
+    SEOAnalysisInput,
+    SEOAnalysisResult,
+    AnalysisDepth,
+    KeywordData,
+    KeywordCluster,
+    SERPAnalysis,
+    SERPResult,
+    CompetitorSEOProfile,
+    KeywordGap,
+    ContentGap,
+    ContentRecommendation,
+    ConfidenceLevel as SEOConfidenceLevel,
+)
+from backend.app.schemas.web_analysis import (
+    WebAnalysisInput,
+    WebAnalysisResult,
+    AnalysisType,
+    PerformanceGrade,
+    ContentQuality,
+    MobileReadiness,
+    SecurityStatus,
+    CMSType,
+    HostingType,
+    SiteStructure,
+    TechnologyStack,
+    PerformanceMetrics,
+    ContentMetrics,
+    UXAnalysis,
+    SecurityAssessment,
+    CompetitorWebProfile,
+    CompetitiveInsight,
+    ConfidenceLevel as WebConfidenceLevel,
+)
+from backend.app.schemas.audience_building import (
+    AudienceBuildingInput,
+    AudienceBuildingResult,
+    CompanySize,
+    PersonaType,
+    BuyingStage,
+    ChannelType,
+    PriorityLevel,
+    ICPProfile,
+    ICPFirmographics,
+    ICPTechnographics,
+    ICPBehavioral,
+    BuyerPersona,
+    PersonaDemographics,
+    PersonaPsychographics,
+    PersonaBehavior,
+    PainPointAnalysis,
+    JourneyStage,
+    JourneyTouchpoint,
+    PersonaMessage,
+    ChannelStrategy,
+    ConfidenceLevel as AudienceConfidenceLevel,
+)
 from backend.app.schemas.email import (
     EmailType,
     EmailTone,
@@ -675,113 +732,1768 @@ def market_research_node(state: OrchestratorState) -> dict[str, Any]:
         }
 
 
+async def _conduct_seo_research_with_tavily(
+    seo_input: SEOAnalysisInput,
+) -> dict[str, Any]:
+    """
+    Internal helper to conduct SEO research using Tavily API.
+
+    Args:
+        seo_input: SEO analysis input parameters
+
+    Returns:
+        Dict containing raw search results for LLM analysis
+    """
+    tavily = TavilyService.get_instance()
+
+    # Build search queries based on input
+    target_url = seo_input.target_url or ""
+    target_keywords = seo_input.target_keywords or []
+    industry = seo_input.industry or ""
+    geo_focus = seo_input.geographic_target or ""
+    language = seo_input.language or "en"
+
+    # Parallel search tasks for efficiency
+    search_tasks = []
+
+    # 1. Keyword research search
+    if target_keywords:
+        keyword_list = ", ".join(target_keywords[:5])
+        keyword_query = f"{keyword_list} keyword research SEO search volume difficulty {industry} {geo_focus}".strip()
+    else:
+        keyword_query = f"{target_url} main keywords SEO focus topics {industry}".strip()
+
+    search_tasks.append(
+        tavily.search(
+            query=keyword_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=8,
+            include_answer=True,
+        )
+    )
+
+    # 2. SERP analysis search
+    serp_query = f"{target_keywords[0] if target_keywords else target_url} SERP analysis top ranking pages featured snippets {geo_focus}".strip()
+    search_tasks.append(
+        tavily.search(
+            query=serp_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=10,
+            include_answer=True,
+        )
+    )
+
+    # 3. Competitor SEO search
+    if seo_input.known_competitors:
+        competitor_domains = ", ".join(seo_input.known_competitors[:5])
+        competitor_query = f"{competitor_domains} SEO strategy organic traffic keywords backlinks {industry}"
+    else:
+        competitor_query = f"{industry} top SEO competitors organic leaders {geo_focus} keyword rankings".strip()
+
+    search_tasks.append(
+        tavily.search(
+            query=competitor_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=8,
+            include_answer=True,
+        )
+    )
+
+    # 4. Content gap analysis search
+    content_gap_query = f"{industry} {target_keywords[0] if target_keywords else ''} content gaps opportunities untapped keywords {geo_focus}".strip()
+    search_tasks.append(
+        tavily.search(
+            query=content_gap_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=6,
+            include_answer=True,
+        )
+    )
+
+    # 5. Technical SEO search (if comprehensive analysis)
+    if seo_input.analysis_depth == AnalysisDepth.COMPREHENSIVE:
+        tech_seo_query = f"SEO best practices technical site speed mobile optimization {industry}".strip()
+        search_tasks.append(
+            tavily.search(
+                query=tech_seo_query,
+                search_depth=SearchDepth.ADVANCED,
+                max_results=5,
+                include_answer=True,
+            )
+        )
+
+    # Execute all searches in parallel
+    results = await asyncio.gather(*search_tasks, return_exceptions=True)
+
+    # Process results
+    research_data = {
+        "keyword_search_results": None,
+        "serp_search_results": None,
+        "competitor_search_results": None,
+        "content_gap_results": None,
+        "technical_seo_results": None,
+    }
+
+    # Keyword research results
+    if not isinstance(results[0], Exception):
+        keyword_result = results[0]
+        research_data["keyword_search_results"] = (
+            f"AI Answer: {keyword_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in keyword_result.results
+            ])
+        )
+
+    # SERP analysis results
+    if not isinstance(results[1], Exception):
+        serp_result = results[1]
+        research_data["serp_search_results"] = (
+            f"AI Answer: {serp_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in serp_result.results
+            ])
+        )
+
+    # Competitor SEO results
+    if not isinstance(results[2], Exception):
+        competitor_result = results[2]
+        research_data["competitor_search_results"] = (
+            f"AI Answer: {competitor_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in competitor_result.results
+            ])
+        )
+
+    # Content gap results
+    if not isinstance(results[3], Exception):
+        gap_result = results[3]
+        research_data["content_gap_results"] = (
+            f"AI Answer: {gap_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in gap_result.results
+            ])
+        )
+
+    # Technical SEO results (if applicable)
+    if len(results) > 4 and not isinstance(results[4], Exception):
+        tech_result = results[4]
+        research_data["technical_seo_results"] = (
+            f"AI Answer: {tech_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in tech_result.results
+            ])
+        )
+
+    return research_data
+
+
+async def _analyze_seo_with_llm(
+    seo_input: SEOAnalysisInput,
+    research_data: dict[str, Any],
+    client_context: dict[str, Any],
+) -> SEOAnalysisResult:
+    """
+    Internal helper to call LLM for SEO analysis.
+
+    Args:
+        seo_input: Original SEO input
+        research_data: Raw research data from Tavily
+        client_context: Client context from state
+
+    Returns:
+        SEOAnalysisResult: Structured SEO analysis
+    """
+    llm_service = LLMService.get_instance()
+    prompt_manager = PromptManager.get_instance()
+
+    # Get today's date for prompt
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Get and render the prompt template
+    system_prompt, user_prompt = prompt_manager.get_full_prompt(
+        "seo_analysis",
+        client_name=client_context.get("client_name", "Unknown"),
+        target_url=seo_input.target_url,
+        target_keywords=seo_input.target_keywords,
+        industry=seo_input.industry,
+        geographic_target=seo_input.geographic_target,
+        language=seo_input.language,
+        analysis_depth=seo_input.analysis_depth.value if seo_input.analysis_depth else "standard",
+        today_date=today,
+        keyword_search_results=research_data.get("keyword_search_results"),
+        serp_search_results=research_data.get("serp_search_results"),
+        competitor_search_results=research_data.get("competitor_search_results"),
+        content_gap_results=research_data.get("content_gap_results"),
+        technical_seo_results=research_data.get("technical_seo_results"),
+    )
+
+    # Call LLM with structured output
+    analysis, usage = await llm_service.generate_structured(
+        output_schema=SEOAnalysisResult,
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+    )
+
+    logger.info(
+        f"[SEO Analysis] LLM analysis complete. "
+        f"Keywords: {len(analysis.primary_keywords)}, "
+        f"Clusters: {len(analysis.keyword_clusters)}, "
+        f"Competitors: {len(analysis.competitors)}, "
+        f"Content gaps: {len(analysis.content_gaps)}, "
+        f"Tokens: {usage.total_tokens}"
+    )
+
+    return analysis
+
+
+def _convert_seo_to_state_format(
+    analysis: SEOAnalysisResult,
+) -> dict[str, Any]:
+    """
+    Convert SEOAnalysisResult to the SEOData TypedDict format for state.
+
+    Args:
+        analysis: LLM analysis result
+
+    Returns:
+        Dict matching SEOData TypedDict structure
+    """
+    return {
+        "keywords": [
+            {
+                "keyword": kw.keyword,
+                "volume": kw.search_volume,
+                "difficulty": kw.difficulty.value if hasattr(kw.difficulty, 'value') else kw.difficulty,
+                "intent": kw.intent.value if hasattr(kw.intent, 'value') else kw.intent,
+                "relevance_score": kw.relevance_score,
+            }
+            for kw in analysis.primary_keywords
+        ],
+        "competitors": [
+            {
+                "domain": c.domain,
+                "traffic": c.estimated_traffic,
+                "authority": c.domain_authority,
+                "top_keywords": c.top_ranking_keywords,
+                "strengths": c.content_strengths,
+                "weaknesses": c.content_weaknesses,
+            }
+            for c in analysis.competitors
+        ],
+        "content_gaps": [
+            gap.topic for gap in analysis.content_gaps
+        ],
+        "serp_analysis": [
+            {
+                "query": serp.keyword,
+                "features": [f.value if hasattr(f, 'value') else f for f in serp.serp_features],
+                "dominant_content_type": serp.dominant_content_type.value if serp.dominant_content_type and hasattr(serp.dominant_content_type, 'value') else serp.dominant_content_type,
+                "top_results": [
+                    {
+                        "position": r.position,
+                        "url": r.url,
+                        "title": r.title,
+                        "domain": r.domain,
+                    }
+                    for r in serp.top_results[:5]  # Limit to top 5
+                ],
+            }
+            for serp in analysis.serp_analyses
+        ],
+        "keyword_clusters": [
+            {
+                "name": cluster.cluster_name,
+                "primary": cluster.primary_keyword,
+                "related": cluster.related_keywords,
+                "recommended_content": cluster.recommended_content_type.value if cluster.recommended_content_type and hasattr(cluster.recommended_content_type, 'value') else cluster.recommended_content_type,
+            }
+            for cluster in analysis.keyword_clusters
+        ],
+        "keyword_gaps": [
+            {
+                "keyword": gap.keyword,
+                "volume": gap.search_volume,
+                "difficulty": gap.difficulty.value if hasattr(gap.difficulty, 'value') else gap.difficulty,
+                "opportunity_score": gap.opportunity_score,
+                "competitors_ranking": gap.competitors_ranking,
+            }
+            for gap in analysis.keyword_gaps
+        ],
+        "content_recommendations": [
+            {
+                "title": rec.title_suggestion,
+                "target_keyword": rec.target_keyword,
+                "content_type": rec.content_type.value if hasattr(rec.content_type, 'value') else rec.content_type,
+                "priority": rec.priority.value if hasattr(rec.priority, 'value') else rec.priority,
+            }
+            for rec in analysis.content_recommendations
+        ],
+        "quick_wins": analysis.quick_wins,
+        "strategic_recommendations": analysis.strategic_recommendations,
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def seo_analysis_node(state: OrchestratorState) -> dict[str, Any]:
     """
-    SEO Analysis Agent - Analyzes SEO opportunities.
+    SEO Analysis Agent - Conducts comprehensive SEO analysis.
 
-    Researches:
-    - Keywords and search volumes
-    - Competitor rankings
-    - Content gaps
-    - SERP features
-    - YouTube insights
+    Uses Tavily API and LLM to research:
+    - Keyword opportunities and search volumes
+    - SERP analysis and ranking factors
+    - Competitor SEO profiles
+    - Content gaps and opportunities
+    - Technical SEO insights (if comprehensive)
+
+    This is a core Intelligence Squad agent (Phase 5.2).
+
+    Input: Expects SEO analysis parameters in state["messages"] with type="seo_analysis_input"
+           or via workflow trigger payload.
+
+    Output: Populates state["seo_data"] with structured analysis.
     """
-    logger.info("[SEO Analysis] Analyzing SEO opportunities")
+    logger.info("[SEO Analysis] Conducting SEO analysis")
 
-    # TODO: Implement actual SEO analysis logic
-    # This is a stub that will be replaced in Phase 5
+    # Extract SEO input from state
+    seo_input: SEOAnalysisInput | None = None
 
-    return {
-        "seo_data": {
-            "keywords": [],
-            "competitors": [],
-            "content_gaps": [],
-            "serp_analysis": [],
-            "youtube_insights": [],
-            "last_updated": datetime.now(timezone.utc).isoformat(),
-        },
-        "agent_execution_log": [
-            _create_execution_log("seo_analysis", "analyze_seo")
-        ],
-        "messages": [
-            _create_agent_message(
-                from_agent="seo_analysis",
-                content="SEO analysis completed (stub)",
-                message_type="info",
+    # Look for SEO analysis input in messages
+    for message in state.get("messages", []):
+        if message.get("message_type") == "seo_analysis_input":
+            try:
+                input_data = message.get("metadata", {})
+                seo_input = SEOAnalysisInput(
+                    target_url=input_data.get("target_url"),
+                    target_keywords=input_data.get("target_keywords", []),
+                    industry=input_data.get("industry"),
+                    geographic_target=input_data.get("geographic_target"),
+                    language=input_data.get("language", "en"),
+                    analysis_depth=AnalysisDepth(input_data.get("analysis_depth", "standard")),
+                    include_competitors=input_data.get("include_competitors", True),
+                    known_competitors=input_data.get("known_competitors", []),
+                    content_types=input_data.get("content_types", []),
+                    business_goals=input_data.get("business_goals", []),
+                    additional_context=input_data.get("additional_context"),
+                )
+                break
+            except Exception as e:
+                logger.warning(f"[SEO Analysis] Failed to parse SEO input: {e}")
+
+    if not seo_input:
+        # No SEO input found - return error state
+        logger.warning("[SEO Analysis] No SEO input provided")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "seo_analysis",
+                    "error",
+                    {"error": "No SEO input provided"}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="seo_analysis",
+                    content="Error: No SEO analysis input provided. Please provide target URL or keywords to analyze.",
+                    message_type="error",
+                )
+            ],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # Get client context
+    client_context = state.get("client", {})
+
+    try:
+        # Run async research in sync context
+        try:
+            loop = asyncio.get_running_loop()
+            import nest_asyncio
+            nest_asyncio.apply()
+
+            # First conduct web research
+            research_data = loop.run_until_complete(
+                _conduct_seo_research_with_tavily(seo_input)
             )
+
+            # Then analyze with LLM
+            analysis = loop.run_until_complete(
+                _analyze_seo_with_llm(seo_input, research_data, client_context)
+            )
+        except RuntimeError:
+            # No event loop running, create a new one
+            research_data = asyncio.run(
+                _conduct_seo_research_with_tavily(seo_input)
+            )
+            analysis = asyncio.run(
+                _analyze_seo_with_llm(seo_input, research_data, client_context)
+            )
+
+        # Convert to state format
+        seo_data_state = _convert_seo_to_state_format(analysis)
+
+        return {
+            "seo_data": seo_data_state,
+            "agent_execution_log": [
+                _create_execution_log(
+                    "seo_analysis",
+                    "analyze_seo",
+                    {
+                        "target_url": seo_input.target_url,
+                        "target_keywords": seo_input.target_keywords[:3] if seo_input.target_keywords else [],
+                        "depth": seo_input.analysis_depth.value if seo_input.analysis_depth else "standard",
+                        "keywords_count": len(analysis.primary_keywords),
+                        "clusters_count": len(analysis.keyword_clusters),
+                        "competitors_count": len(analysis.competitors),
+                        "content_gaps_count": len(analysis.content_gaps),
+                        "confidence": analysis.confidence_level.value if hasattr(analysis.confidence_level, 'value') else analysis.confidence_level,
+                    }
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="seo_analysis",
+                    content=f"SEO analysis completed: "
+                            f"{len(analysis.primary_keywords)} keywords, {len(analysis.keyword_clusters)} clusters, "
+                            f"{len(analysis.competitors)} competitors, {len(analysis.content_gaps)} content gaps identified",
+                    message_type="info",
+                    metadata={
+                        "target": seo_input.target_url or seo_input.target_keywords[0] if seo_input.target_keywords else "N/A",
+                        "analysis_summary": analysis.analysis_summary,
+                        "confidence_level": analysis.confidence_level.value if hasattr(analysis.confidence_level, 'value') else analysis.confidence_level,
+                        "quick_wins": analysis.quick_wins[:3] if analysis.quick_wins else [],
+                    },
+                )
+            ],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except TavilyError as e:
+        logger.error(f"[SEO Analysis] Tavily error: {e}")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "seo_analysis",
+                    "error",
+                    {"error": str(e), "type": "tavily_error"}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="seo_analysis",
+                    content=f"Error conducting SEO research: {e.message}",
+                    message_type="error",
+                )
+            ],
+            "error_message": f"SEO Analysis Agent Error (Tavily): {e.message}",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except LLMError as e:
+        logger.error(f"[SEO Analysis] LLM error: {e}")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "seo_analysis",
+                    "error",
+                    {"error": str(e), "provider": e.provider.value if e.provider else None}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="seo_analysis",
+                    content=f"Error analyzing SEO data: {e.message}",
+                    message_type="error",
+                )
+            ],
+            "error_message": f"SEO Analysis Agent Error (LLM): {e.message}",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.exception(f"[SEO Analysis] Unexpected error: {e}")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "seo_analysis",
+                    "error",
+                    {"error": str(e)}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="seo_analysis",
+                    content=f"Unexpected error in SEO analysis: {str(e)}",
+                    message_type="error",
+                )
+            ],
+            "error_message": f"SEO Analysis Agent Error: {str(e)}",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+async def _conduct_web_research_with_tavily(
+    web_input: WebAnalysisInput,
+) -> dict[str, Any]:
+    """
+    Internal helper to conduct web analysis research using Tavily API.
+
+    Args:
+        web_input: Web analysis input parameters
+
+    Returns:
+        Dict containing raw search results for LLM analysis
+    """
+    tavily = TavilyService.get_instance()
+
+    # Build search queries based on input
+    primary_domain = web_input.primary_domain or ""
+    target_urls = web_input.target_urls or []
+    industry = web_input.industry or ""
+
+    # Use primary domain or first target URL for queries
+    target = primary_domain or (target_urls[0] if target_urls else "")
+
+    # Parallel search tasks for efficiency
+    search_tasks = []
+
+    # 1. Website structure and navigation search
+    structure_query = f"{target} website structure navigation site map information architecture".strip()
+    search_tasks.append(
+        tavily.search(
+            query=structure_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=6,
+            include_answer=True,
+        )
+    )
+
+    # 2. Technology stack search
+    tech_query = f"{target} technology stack CMS platform framework hosting built with".strip()
+    search_tasks.append(
+        tavily.search(
+            query=tech_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=8,
+            include_answer=True,
+        )
+    )
+
+    # 3. Performance analysis search
+    performance_query = f"{target} website performance page speed Core Web Vitals mobile optimization".strip()
+    search_tasks.append(
+        tavily.search(
+            query=performance_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=6,
+            include_answer=True,
+        )
+    )
+
+    # 4. Content and UX analysis search
+    content_ux_query = f"{target} website content quality user experience design UX review".strip()
+    search_tasks.append(
+        tavily.search(
+            query=content_ux_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=6,
+            include_answer=True,
+        )
+    )
+
+    # 5. Competitor website analysis (if requested)
+    if web_input.include_competitors:
+        if web_input.competitor_urls:
+            competitor_domains = ", ".join(web_input.competitor_urls[:3])
+            competitor_query = f"{competitor_domains} website technology design comparison {industry}".strip()
+        else:
+            competitor_query = f"{industry} top company websites design technology trends best practices".strip()
+
+        search_tasks.append(
+            tavily.search(
+                query=competitor_query,
+                search_depth=SearchDepth.ADVANCED,
+                max_results=8,
+                include_answer=True,
+            )
+        )
+
+    # 6. Security analysis (if technical or competitive analysis)
+    if web_input.analysis_type in [AnalysisType.TECHNICAL, AnalysisType.COMPETITIVE]:
+        security_query = f"{target} website security HTTPS SSL headers best practices".strip()
+        search_tasks.append(
+            tavily.search(
+                query=security_query,
+                search_depth=SearchDepth.ADVANCED,
+                max_results=5,
+                include_answer=True,
+            )
+        )
+
+    # Execute all searches in parallel
+    results = await asyncio.gather(*search_tasks, return_exceptions=True)
+
+    # Process results
+    research_data = {
+        "structure_search_results": None,
+        "technology_search_results": None,
+        "performance_search_results": None,
+        "content_ux_search_results": None,
+        "competitor_search_results": None,
+        "security_search_results": None,
+    }
+
+    # Structure results
+    if not isinstance(results[0], Exception):
+        structure_result = results[0]
+        research_data["structure_search_results"] = (
+            f"AI Answer: {structure_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in structure_result.results
+            ])
+        )
+
+    # Technology stack results
+    if not isinstance(results[1], Exception):
+        tech_result = results[1]
+        research_data["technology_search_results"] = (
+            f"AI Answer: {tech_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in tech_result.results
+            ])
+        )
+
+    # Performance results
+    if not isinstance(results[2], Exception):
+        perf_result = results[2]
+        research_data["performance_search_results"] = (
+            f"AI Answer: {perf_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in perf_result.results
+            ])
+        )
+
+    # Content/UX results
+    if not isinstance(results[3], Exception):
+        content_result = results[3]
+        research_data["content_ux_search_results"] = (
+            f"AI Answer: {content_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in content_result.results
+            ])
+        )
+
+    # Competitor results (if applicable)
+    result_idx = 4
+    if web_input.include_competitors and len(results) > result_idx and not isinstance(results[result_idx], Exception):
+        competitor_result = results[result_idx]
+        research_data["competitor_search_results"] = (
+            f"AI Answer: {competitor_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in competitor_result.results
+            ])
+        )
+        result_idx += 1
+
+    # Security results (if applicable)
+    if len(results) > result_idx and not isinstance(results[result_idx], Exception):
+        security_result = results[result_idx]
+        research_data["security_search_results"] = (
+            f"AI Answer: {security_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in security_result.results
+            ])
+        )
+
+    return research_data
+
+
+async def _analyze_web_with_llm(
+    web_input: WebAnalysisInput,
+    research_data: dict[str, Any],
+    client_context: dict[str, Any],
+) -> WebAnalysisResult:
+    """
+    Internal helper to call LLM for web analysis.
+
+    Args:
+        web_input: Original web analysis input
+        research_data: Raw research data from Tavily
+        client_context: Client context from state
+
+    Returns:
+        WebAnalysisResult: Structured web analysis
+    """
+    llm_service = LLMService.get_instance()
+    prompt_manager = PromptManager.get_instance()
+
+    # Get today's date for prompt
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Get and render the prompt template
+    system_prompt, user_prompt = prompt_manager.get_full_prompt(
+        "web_analysis",
+        client_name=client_context.get("client_name", "Unknown"),
+        primary_domain=web_input.primary_domain,
+        target_urls=web_input.target_urls,
+        industry=web_input.industry,
+        analysis_type=web_input.analysis_type.value if web_input.analysis_type else "standard",
+        today_date=today,
+        business_goals=web_input.business_goals,
+        competitor_urls=web_input.competitor_urls,
+        focus_areas=web_input.focus_areas,
+        additional_context=web_input.additional_context,
+        structure_search_results=research_data.get("structure_search_results"),
+        technology_search_results=research_data.get("technology_search_results"),
+        performance_search_results=research_data.get("performance_search_results"),
+        content_ux_search_results=research_data.get("content_ux_search_results"),
+        competitor_search_results=research_data.get("competitor_search_results"),
+        security_search_results=research_data.get("security_search_results"),
+    )
+
+    # Call LLM with structured output
+    analysis, usage = await llm_service.generate_structured(
+        output_schema=WebAnalysisResult,
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+    )
+
+    logger.info(
+        f"[Web Analysis] LLM analysis complete. "
+        f"Domain: {analysis.analyzed_domain}, "
+        f"Competitors: {len(analysis.competitor_profiles)}, "
+        f"Quick wins: {len(analysis.quick_wins)}, "
+        f"Tokens: {usage.total_tokens}"
+    )
+
+    return analysis
+
+
+def _convert_web_analysis_to_state_format(
+    analysis: WebAnalysisResult,
+) -> dict[str, Any]:
+    """
+    Convert WebAnalysisResult to the web_analysis dict format for state.
+
+    Args:
+        analysis: LLM analysis result
+
+    Returns:
+        Dict matching web_analysis state structure
+    """
+    return {
+        "analyzed_domain": analysis.analyzed_domain,
+        "analysis_summary": analysis.analysis_summary,
+        "site_structure": {
+            "total_pages": analysis.site_structure.total_pages_estimate if analysis.site_structure else None,
+            "navigation_type": analysis.site_structure.navigation_type if analysis.site_structure else None,
+            "url_structure": analysis.site_structure.url_structure if analysis.site_structure else None,
+            "sitemap_available": analysis.site_structure.sitemap_available if analysis.site_structure else False,
+            "key_pages": [
+                {
+                    "url": p.url,
+                    "title": p.title,
+                    "page_type": p.page_type,
+                }
+                for p in (analysis.site_structure.key_pages if analysis.site_structure else [])
+            ],
+        } if analysis.site_structure else None,
+        "tech_stack": {
+            "cms": analysis.technology_stack.cms.value if analysis.technology_stack and analysis.technology_stack.cms else None,
+            "hosting": analysis.technology_stack.hosting.value if analysis.technology_stack and analysis.technology_stack.hosting else None,
+            "cdn": analysis.technology_stack.cdn if analysis.technology_stack else None,
+            "frontend_framework": analysis.technology_stack.frontend_framework if analysis.technology_stack else None,
+            "css_framework": analysis.technology_stack.css_framework if analysis.technology_stack else None,
+            "analytics_tools": analysis.technology_stack.analytics_tools if analysis.technology_stack else [],
+            "marketing_tools": analysis.technology_stack.marketing_tools if analysis.technology_stack else [],
+        } if analysis.technology_stack else None,
+        "performance": {
+            "overall_grade": analysis.performance.overall_grade.value if analysis.performance and analysis.performance.overall_grade else None,
+            "page_load_estimate": analysis.performance.page_load_estimate if analysis.performance else None,
+            "mobile_readiness": analysis.performance.mobile_readiness.value if analysis.performance and analysis.performance.mobile_readiness else None,
+            "optimization_opportunities": analysis.performance.optimization_opportunities if analysis.performance else [],
+            "performance_issues": analysis.performance.performance_issues if analysis.performance else [],
+        } if analysis.performance else None,
+        "content_quality": {
+            "overall_quality": analysis.content_analysis.overall_quality.value if analysis.content_analysis and analysis.content_analysis.overall_quality else None,
+            "content_freshness": analysis.content_analysis.content_freshness if analysis.content_analysis else None,
+            "content_types": analysis.content_analysis.content_types_found if analysis.content_analysis else [],
+            "strengths": analysis.content_analysis.content_strengths if analysis.content_analysis else [],
+            "weaknesses": analysis.content_analysis.content_weaknesses if analysis.content_analysis else [],
+        } if analysis.content_analysis else None,
+        "ux_analysis": {
+            "overall_score": analysis.ux_analysis.overall_ux_score if analysis.ux_analysis else None,
+            "design_style": analysis.ux_analysis.design_style if analysis.ux_analysis else None,
+            "strengths": analysis.ux_analysis.ux_strengths if analysis.ux_analysis else [],
+            "weaknesses": analysis.ux_analysis.ux_weaknesses if analysis.ux_analysis else [],
+        } if analysis.ux_analysis else None,
+        "security": {
+            "status": analysis.security.overall_status.value if analysis.security and analysis.security.overall_status else None,
+            "https_enabled": analysis.security.https_enabled if analysis.security else True,
+            "issues": analysis.security.potential_issues if analysis.security else [],
+        } if analysis.security else None,
+        "competitors": [
+            {
+                "domain": c.domain,
+                "assessment": c.overall_assessment,
+                "strengths": c.strengths,
+                "weaknesses": c.weaknesses,
+                "notable_features": c.notable_features,
+            }
+            for c in analysis.competitor_profiles
         ],
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "competitive_insights": [
+            {
+                "category": ci.category,
+                "insight": ci.insight,
+                "action": ci.action_item,
+                "priority": ci.priority,
+            }
+            for ci in analysis.competitive_insights
+        ],
+        "quick_wins": analysis.quick_wins,
+        "strategic_recommendations": analysis.strategic_recommendations,
+        "priority_actions": analysis.priority_actions,
+        "confidence_level": analysis.confidence_level.value if hasattr(analysis.confidence_level, 'value') else analysis.confidence_level,
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# =============================================================================
+# AUDIENCE BUILDING HELPER FUNCTIONS (Phase 5.4)
+# =============================================================================
+
+
+def _gather_intelligence_context(state: OrchestratorState) -> dict[str, Any]:
+    """
+    Gather context from other intelligence agents in state.
+
+    This function reads data from market_research, seo_data, and web_analysis
+    to provide comprehensive context for audience building.
+
+    Args:
+        state: Current orchestrator state
+
+    Returns:
+        Dict containing synthesized intelligence data
+    """
+    intelligence_context = {
+        "market_research": None,
+        "seo_data": None,
+        "web_analysis": None,
+        "sources_available": [],
+    }
+
+    # Extract market research data
+    market_research = state.get("market_research")
+    if market_research:
+        intelligence_context["market_research"] = {
+            "industry": market_research.get("industry"),
+            "market_overview": market_research.get("market_overview"),
+            "trends": market_research.get("trends", []),
+            "competitors": market_research.get("competitors", []),
+            "target_segments": market_research.get("target_segments", []),
+            "opportunities": market_research.get("opportunities", []),
+            "threats": market_research.get("threats", []),
+        }
+        intelligence_context["sources_available"].append("market_research")
+
+    # Extract SEO data
+    seo_data = state.get("seo_data")
+    if seo_data:
+        intelligence_context["seo_data"] = {
+            "primary_domain": seo_data.get("primary_domain"),
+            "keyword_clusters": seo_data.get("keyword_clusters", []),
+            "competitor_profiles": seo_data.get("competitor_profiles", []),
+            "content_gaps": seo_data.get("content_gaps", []),
+            "content_recommendations": seo_data.get("content_recommendations", []),
+            "search_intent_insights": seo_data.get("search_intent_insights"),
+        }
+        intelligence_context["sources_available"].append("seo_data")
+
+    # Extract web analysis data
+    web_analysis = state.get("web_analysis")
+    if web_analysis:
+        intelligence_context["web_analysis"] = {
+            "analyzed_domain": web_analysis.get("analyzed_domain"),
+            "analysis_summary": web_analysis.get("analysis_summary"),
+            "tech_stack": web_analysis.get("tech_stack"),
+            "content_quality": web_analysis.get("content_quality"),
+            "ux_analysis": web_analysis.get("ux_analysis"),
+            "competitors": web_analysis.get("competitors", []),
+            "competitive_insights": web_analysis.get("competitive_insights", []),
+        }
+        intelligence_context["sources_available"].append("web_analysis")
+
+    return intelligence_context
+
+
+async def _conduct_audience_research_with_tavily(
+    audience_input: AudienceBuildingInput,
+    intelligence_context: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Conduct audience-focused web research using Tavily API.
+
+    Args:
+        audience_input: Audience building input parameters
+        intelligence_context: Data from other intelligence agents
+
+    Returns:
+        Dict containing raw research data for audience analysis
+    """
+    tavily = TavilyService.get_instance()
+
+    # Build search context
+    product_category = audience_input.product_category
+    target_market = audience_input.target_market or ""
+    industries = ", ".join(audience_input.target_industries[:3]) if audience_input.target_industries else ""
+
+    # Prepare search tasks
+    search_tasks = []
+
+    # 1. Buyer persona research
+    persona_query = f"{product_category} buyer persona decision maker {target_market} {industries}".strip()
+    search_tasks.append(
+        tavily.search(
+            query=persona_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=8,
+            include_answer=True,
+        )
+    )
+
+    # 2. Pain points and challenges research
+    pain_points_query = f"{product_category} customer pain points challenges problems {target_market}".strip()
+    search_tasks.append(
+        tavily.search(
+            query=pain_points_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=8,
+            include_answer=True,
+        )
+    )
+
+    # 3. Buying journey and decision process research
+    journey_query = f"{product_category} B2B buying journey decision process evaluation criteria {industries}".strip()
+    search_tasks.append(
+        tavily.search(
+            query=journey_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=6,
+            include_answer=True,
+        )
+    )
+
+    # 4. ICP (Ideal Customer Profile) research
+    icp_query = f"{product_category} ideal customer profile ICP characteristics {target_market} success factors".strip()
+    search_tasks.append(
+        tavily.search(
+            query=icp_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=6,
+            include_answer=True,
+        )
+    )
+
+    # 5. Channel preferences and content consumption
+    channel_query = f"{product_category} {target_market} marketing channels content preferences B2B engagement".strip()
+    search_tasks.append(
+        tavily.search(
+            query=channel_query,
+            search_depth=SearchDepth.ADVANCED,
+            max_results=6,
+            include_answer=True,
+        )
+    )
+
+    # 6. Industry-specific audience insights (if industries specified)
+    if industries:
+        industry_query = f"{industries} technology adoption trends buyer behavior {product_category}".strip()
+        search_tasks.append(
+            tavily.search(
+                query=industry_query,
+                search_depth=SearchDepth.ADVANCED,
+                max_results=6,
+                include_answer=True,
+            )
+        )
+
+    # Execute all searches in parallel
+    results = await asyncio.gather(*search_tasks, return_exceptions=True)
+
+    # Process results
+    research_data = {
+        "persona_search_results": None,
+        "pain_points_search_results": None,
+        "journey_search_results": None,
+        "icp_search_results": None,
+        "channel_search_results": None,
+        "industry_search_results": None,
+    }
+
+    # Persona research results
+    if not isinstance(results[0], Exception):
+        persona_result = results[0]
+        research_data["persona_search_results"] = (
+            f"AI Answer: {persona_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in persona_result.results
+            ])
+        )
+
+    # Pain points results
+    if not isinstance(results[1], Exception):
+        pain_result = results[1]
+        research_data["pain_points_search_results"] = (
+            f"AI Answer: {pain_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in pain_result.results
+            ])
+        )
+
+    # Journey results
+    if not isinstance(results[2], Exception):
+        journey_result = results[2]
+        research_data["journey_search_results"] = (
+            f"AI Answer: {journey_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in journey_result.results
+            ])
+        )
+
+    # ICP results
+    if not isinstance(results[3], Exception):
+        icp_result = results[3]
+        research_data["icp_search_results"] = (
+            f"AI Answer: {icp_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in icp_result.results
+            ])
+        )
+
+    # Channel results
+    if not isinstance(results[4], Exception):
+        channel_result = results[4]
+        research_data["channel_search_results"] = (
+            f"AI Answer: {channel_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in channel_result.results
+            ])
+        )
+
+    # Industry-specific results (if applicable)
+    if len(results) > 5 and not isinstance(results[5], Exception):
+        industry_result = results[5]
+        research_data["industry_search_results"] = (
+            f"AI Answer: {industry_result.answer}\n\n"
+            + "\n\n".join([
+                f"**{r.title}**\n{r.content}\nSource: {r.url}"
+                for r in industry_result.results
+            ])
+        )
+
+    return research_data
+
+
+async def _analyze_audience_with_llm(
+    audience_input: AudienceBuildingInput,
+    research_data: dict[str, Any],
+    intelligence_context: dict[str, Any],
+    client_context: dict[str, Any],
+) -> AudienceBuildingResult:
+    """
+    Call LLM to analyze audience data and create personas.
+
+    Args:
+        audience_input: Original audience building input
+        research_data: Raw research data from Tavily
+        intelligence_context: Data from other intelligence agents
+        client_context: Client context from state
+
+    Returns:
+        AudienceBuildingResult: Structured audience analysis
+    """
+    llm_service = LLMService.get_instance()
+    prompt_manager = PromptManager.get_instance()
+
+    # Get today's date for prompt
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Format intelligence context for the prompt
+    market_context_str = ""
+    if intelligence_context.get("market_research"):
+        mr = intelligence_context["market_research"]
+        market_context_str = f"""
+Market Research Data:
+- Industry: {mr.get('industry', 'N/A')}
+- Market Overview: {mr.get('market_overview', 'N/A')}
+- Key Trends: {', '.join([t.get('name', str(t)) if isinstance(t, dict) else str(t) for t in mr.get('trends', [])[:5]])}
+- Target Segments: {', '.join([s.get('name', str(s)) if isinstance(s, dict) else str(s) for s in mr.get('target_segments', [])[:3]])}
+- Opportunities: {', '.join([o.get('name', str(o)) if isinstance(o, dict) else str(o) for o in mr.get('opportunities', [])[:3]])}
+"""
+
+    seo_context_str = ""
+    if intelligence_context.get("seo_data"):
+        seo = intelligence_context["seo_data"]
+        clusters = seo.get("keyword_clusters", [])
+        cluster_names = [c.get("cluster_name", str(c)) if isinstance(c, dict) else str(c) for c in clusters[:5]]
+        seo_context_str = f"""
+SEO Intelligence Data:
+- Primary Domain: {seo.get('primary_domain', 'N/A')}
+- Top Keyword Clusters: {', '.join(cluster_names)}
+- Search Intent Insights: {seo.get('search_intent_insights', 'N/A')}
+"""
+
+    web_context_str = ""
+    if intelligence_context.get("web_analysis"):
+        web = intelligence_context["web_analysis"]
+        web_context_str = f"""
+Web Analysis Data:
+- Analyzed Domain: {web.get('analyzed_domain', 'N/A')}
+- Analysis Summary: {web.get('analysis_summary', 'N/A')}
+"""
+
+    # Combine intelligence context
+    combined_intelligence = f"{market_context_str}\n{seo_context_str}\n{web_context_str}".strip()
+
+    # Format company sizes
+    company_sizes_str = ", ".join([
+        cs.value if hasattr(cs, 'value') else str(cs)
+        for cs in audience_input.target_company_sizes
+    ]) if audience_input.target_company_sizes else "Not specified"
+
+    # Get and render the prompt template
+    system_prompt, user_prompt = prompt_manager.get_full_prompt(
+        "audience_builder",
+        client_name=client_context.get("client_name", "Unknown"),
+        product_category=audience_input.product_category,
+        value_proposition=audience_input.value_proposition,
+        target_market=audience_input.target_market,
+        geographic_focus=audience_input.geographic_focus,
+        target_company_sizes=company_sizes_str,
+        target_industries=audience_input.target_industries,
+        existing_customer_traits=audience_input.existing_customer_traits,
+        known_pain_points=audience_input.known_pain_points,
+        num_personas=audience_input.num_personas,
+        additional_context=audience_input.additional_context,
+        today_date=today,
+        intelligence_context=combined_intelligence,
+        sources_available=intelligence_context.get("sources_available", []),
+        persona_search_results=research_data.get("persona_search_results"),
+        pain_points_search_results=research_data.get("pain_points_search_results"),
+        journey_search_results=research_data.get("journey_search_results"),
+        icp_search_results=research_data.get("icp_search_results"),
+        channel_search_results=research_data.get("channel_search_results"),
+        industry_search_results=research_data.get("industry_search_results"),
+    )
+
+    # Call LLM with structured output
+    analysis, usage = await llm_service.generate_structured(
+        output_schema=AudienceBuildingResult,
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+    )
+
+    logger.info(
+        f"[Audience Builder] LLM analysis complete. "
+        f"Personas: {len(analysis.buyer_personas)}, "
+        f"Pain Points: {len(analysis.pain_point_analysis)}, "
+        f"Journey Stages: {len(analysis.buying_journey)}, "
+        f"Channels: {len(analysis.channel_strategy)}, "
+        f"Tokens: {usage.total_tokens}"
+    )
+
+    return analysis
+
+
+def _convert_audience_to_state_format(
+    analysis: AudienceBuildingResult,
+) -> dict[str, Any]:
+    """
+    Convert AudienceBuildingResult to the audience_data dict format for state.
+
+    Args:
+        analysis: LLM analysis result
+
+    Returns:
+        Dict matching audience_data state structure
+    """
+    return {
+        "analysis_summary": analysis.analysis_summary,
+        "ideal_customer_profile": {
+            "summary": analysis.ideal_customer_profile.summary,
+            "firmographics": {
+                "company_sizes": [
+                    cs.value if hasattr(cs, 'value') else str(cs)
+                    for cs in analysis.ideal_customer_profile.firmographics.company_size
+                ],
+                "employee_count_range": analysis.ideal_customer_profile.firmographics.employee_count_range,
+                "revenue_range": analysis.ideal_customer_profile.firmographics.revenue_range,
+                "industries": analysis.ideal_customer_profile.firmographics.industries,
+                "geographic_regions": analysis.ideal_customer_profile.firmographics.geographic_regions,
+                "business_model": analysis.ideal_customer_profile.firmographics.business_model,
+            },
+            "technographics": {
+                "current_tools": analysis.ideal_customer_profile.technographics.current_tools,
+                "tech_maturity": analysis.ideal_customer_profile.technographics.tech_maturity,
+                "integration_needs": analysis.ideal_customer_profile.technographics.integration_needs,
+            },
+            "behavioral": {
+                "buying_triggers": analysis.ideal_customer_profile.behavioral.buying_triggers,
+                "decision_timeline": analysis.ideal_customer_profile.behavioral.decision_timeline,
+                "budget_characteristics": analysis.ideal_customer_profile.behavioral.budget_characteristics,
+                "evaluation_criteria": analysis.ideal_customer_profile.behavioral.evaluation_criteria,
+            },
+            "key_pain_points": analysis.ideal_customer_profile.key_pain_points,
+            "desired_outcomes": analysis.ideal_customer_profile.desired_outcomes,
+            "disqualification_criteria": analysis.ideal_customer_profile.disqualification_criteria,
+        },
+        "personas": [
+            {
+                "persona_name": persona.persona_name,
+                "persona_type": persona.persona_type.value if hasattr(persona.persona_type, 'value') else str(persona.persona_type),
+                "one_liner": persona.one_liner,
+                "demographics": {
+                    "job_titles": persona.demographics.job_titles,
+                    "seniority_level": persona.demographics.seniority_level,
+                    "department": persona.demographics.department,
+                    "age_range": persona.demographics.age_range,
+                    "education": persona.demographics.education,
+                    "experience_years": persona.demographics.experience_years,
+                },
+                "psychographics": {
+                    "goals": persona.psychographics.goals,
+                    "challenges": persona.psychographics.challenges,
+                    "motivations": persona.psychographics.motivations,
+                    "fears": persona.psychographics.fears,
+                    "values": persona.psychographics.values,
+                },
+                "behavior": {
+                    "information_sources": persona.behavior.information_sources,
+                    "preferred_content_types": persona.behavior.preferred_content_types,
+                    "social_platforms": persona.behavior.social_platforms,
+                    "buying_role": persona.behavior.buying_role.value if hasattr(persona.behavior.buying_role, 'value') else str(persona.behavior.buying_role),
+                    "decision_influence": persona.behavior.decision_influence,
+                },
+                "pain_points": persona.pain_points,
+                "objections": persona.objections,
+                "key_messages": persona.key_messages,
+                "quotes": persona.quotes,
+            }
+            for persona in analysis.buyer_personas
+        ],
+        "pain_point_analysis": [
+            {
+                "pain_point": pp.pain_point,
+                "description": pp.description,
+                "affected_personas": pp.affected_personas,
+                "severity": pp.severity.value if hasattr(pp.severity, 'value') else str(pp.severity),
+                "frequency": pp.frequency,
+                "current_solutions": pp.current_solutions,
+                "our_solution": pp.our_solution,
+            }
+            for pp in analysis.pain_point_analysis
+        ],
+        "buying_journey": [
+            {
+                "stage": stage.stage.value if hasattr(stage.stage, 'value') else str(stage.stage),
+                "description": stage.description,
+                "buyer_goals": stage.buyer_goals,
+                "buyer_questions": stage.buyer_questions,
+                "buyer_emotions": stage.buyer_emotions,
+                "touchpoints": [
+                    {
+                        "channel": tp.channel.value if hasattr(tp.channel, 'value') else str(tp.channel),
+                        "content_type": tp.content_type,
+                        "purpose": tp.purpose,
+                        "key_message": tp.key_message,
+                    }
+                    for tp in stage.touchpoints
+                ],
+                "content_needs": stage.content_needs,
+                "success_metrics": stage.success_metrics,
+            }
+            for stage in analysis.buying_journey
+        ],
+        "messaging_matrix": [
+            {
+                "persona_name": msg.persona_name,
+                "value_proposition": msg.value_proposition,
+                "key_benefits": msg.key_benefits,
+                "proof_points": msg.proof_points,
+                "call_to_action": msg.call_to_action,
+                "tone": msg.tone,
+                "words_to_use": msg.words_to_use,
+                "words_to_avoid": msg.words_to_avoid,
+            }
+            for msg in analysis.messaging_matrix
+        ],
+        "channel_strategy": [
+            {
+                "channel": ch.channel.value if hasattr(ch.channel, 'value') else str(ch.channel),
+                "priority": ch.priority.value if hasattr(ch.priority, 'value') else str(ch.priority),
+                "target_personas": ch.target_personas,
+                "journey_stages": [
+                    js.value if hasattr(js, 'value') else str(js)
+                    for js in ch.journey_stages
+                ],
+                "content_types": ch.content_types,
+                "estimated_effectiveness": ch.estimated_effectiveness,
+                "key_tactics": ch.key_tactics,
+                "success_metrics": ch.success_metrics,
+            }
+            for ch in analysis.channel_strategy
+        ],
+        "quick_wins": analysis.quick_wins,
+        "strategic_recommendations": analysis.strategic_recommendations,
+        "data_sources_used": analysis.data_sources_used,
+        "confidence_level": analysis.confidence_level.value if hasattr(analysis.confidence_level, 'value') else str(analysis.confidence_level),
+        "data_limitations": analysis.data_limitations,
+        "last_updated": datetime.now(timezone.utc).isoformat(),
     }
 
 
 def web_analysis_node(state: OrchestratorState) -> dict[str, Any]:
     """
-    Web Analysis Agent - Analyzes websites and competitors.
+    Web Analysis Agent - Conducts comprehensive website analysis.
 
-    Examines:
-    - Website structure
-    - Technology stack
-    - Performance metrics
-    - Content quality
+    Uses Tavily API and LLM to analyze:
+    - Website structure and navigation
+    - Technology stack (CMS, frameworks, hosting)
+    - Performance metrics and Core Web Vitals
+    - Content quality and UX design
+    - Competitor website comparison
+    - Security assessment
+
+    This is a core Intelligence Squad agent (Phase 5.3).
+
+    Input: Expects web analysis parameters in state["messages"] with type="web_analysis_input"
+           or via workflow trigger payload.
+
+    Output: Populates state["web_analysis"] with structured analysis.
     """
-    logger.info("[Web Analysis] Analyzing web presence")
+    logger.info("[Web Analysis] Conducting website analysis")
 
-    # TODO: Implement actual web analysis logic
+    # Extract web analysis input from state
+    web_input: WebAnalysisInput | None = None
 
-    return {
-        "web_analysis": {
-            "analyzed_sites": [],
-            "tech_stack": [],
-            "performance_scores": {},
-            "recommendations": [],
-        },
-        "agent_execution_log": [
-            _create_execution_log("web_analysis", "analyze_web")
-        ],
-        "messages": [
-            _create_agent_message(
-                from_agent="web_analysis",
-                content="Web analysis completed (stub)",
-                message_type="info",
+    # Look for web analysis input in messages
+    for message in state.get("messages", []):
+        if message.get("message_type") == "web_analysis_input":
+            try:
+                input_data = message.get("metadata", {})
+                web_input = WebAnalysisInput(
+                    target_urls=input_data.get("target_urls", []),
+                    primary_domain=input_data.get("primary_domain"),
+                    industry=input_data.get("industry"),
+                    analysis_type=AnalysisType(input_data.get("analysis_type", "standard")),
+                    include_competitors=input_data.get("include_competitors", True),
+                    competitor_urls=input_data.get("competitor_urls", []),
+                    focus_areas=input_data.get("focus_areas", []),
+                    business_goals=input_data.get("business_goals", []),
+                    additional_context=input_data.get("additional_context"),
+                )
+                break
+            except Exception as e:
+                logger.warning(f"[Web Analysis] Failed to parse web input: {e}")
+
+    if not web_input:
+        # No web input found - return error state
+        logger.warning("[Web Analysis] No web input provided")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "web_analysis",
+                    "error",
+                    {"error": "No web input provided"}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="web_analysis",
+                    content="Error: No web analysis input provided. Please provide target URLs or domain to analyze.",
+                    message_type="error",
+                )
+            ],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # Get client context
+    client_context = state.get("client", {})
+
+    try:
+        # Run async research in sync context
+        try:
+            loop = asyncio.get_running_loop()
+            import nest_asyncio
+            nest_asyncio.apply()
+
+            # First conduct web research
+            research_data = loop.run_until_complete(
+                _conduct_web_research_with_tavily(web_input)
             )
-        ],
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
+
+            # Then analyze with LLM
+            analysis = loop.run_until_complete(
+                _analyze_web_with_llm(web_input, research_data, client_context)
+            )
+        except RuntimeError:
+            # No event loop running, create a new one
+            research_data = asyncio.run(
+                _conduct_web_research_with_tavily(web_input)
+            )
+            analysis = asyncio.run(
+                _analyze_web_with_llm(web_input, research_data, client_context)
+            )
+
+        # Convert to state format
+        web_analysis_state = _convert_web_analysis_to_state_format(analysis)
+
+        return {
+            "web_analysis": web_analysis_state,
+            "agent_execution_log": [
+                _create_execution_log(
+                    "web_analysis",
+                    "analyze_web",
+                    {
+                        "primary_domain": web_input.primary_domain,
+                        "target_urls": web_input.target_urls[:2] if web_input.target_urls else [],
+                        "analysis_type": web_input.analysis_type.value if web_input.analysis_type else "standard",
+                        "competitors_analyzed": len(analysis.competitor_profiles),
+                        "quick_wins_count": len(analysis.quick_wins),
+                        "confidence": analysis.confidence_level.value if hasattr(analysis.confidence_level, 'value') else analysis.confidence_level,
+                    }
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="web_analysis",
+                    content=f"Web analysis completed for {analysis.analyzed_domain or 'target'}: "
+                            f"{len(analysis.competitor_profiles)} competitors analyzed, "
+                            f"{len(analysis.quick_wins)} quick wins, "
+                            f"{len(analysis.strategic_recommendations)} strategic recommendations",
+                    message_type="info",
+                    metadata={
+                        "domain": analysis.analyzed_domain,
+                        "analysis_summary": analysis.analysis_summary,
+                        "confidence_level": analysis.confidence_level.value if hasattr(analysis.confidence_level, 'value') else analysis.confidence_level,
+                        "quick_wins": analysis.quick_wins[:3] if analysis.quick_wins else [],
+                    },
+                )
+            ],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except TavilyError as e:
+        logger.error(f"[Web Analysis] Tavily error: {e}")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "web_analysis",
+                    "error",
+                    {"error": str(e), "type": "tavily_error"}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="web_analysis",
+                    content=f"Error conducting web research: {e.message}",
+                    message_type="error",
+                )
+            ],
+            "error_message": f"Web Analysis Agent Error (Tavily): {e.message}",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except LLMError as e:
+        logger.error(f"[Web Analysis] LLM error: {e}")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "web_analysis",
+                    "error",
+                    {"error": str(e), "provider": e.provider.value if e.provider else None}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="web_analysis",
+                    content=f"Error analyzing web data: {e.message}",
+                    message_type="error",
+                )
+            ],
+            "error_message": f"Web Analysis Agent Error (LLM): {e.message}",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.exception(f"[Web Analysis] Unexpected error: {e}")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "web_analysis",
+                    "error",
+                    {"error": str(e)}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="web_analysis",
+                    content=f"Unexpected error in web analysis: {str(e)}",
+                    message_type="error",
+                )
+            ],
+            "error_message": f"Web Analysis Agent Error: {str(e)}",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
 
 
 def audience_builder_node(state: OrchestratorState) -> dict[str, Any]:
     """
-    Audience Builder Agent - Creates audience personas.
+    Audience Builder Agent - Creates comprehensive audience profiles and personas.
 
-    Builds:
-    - Buyer personas
-    - Audience segments
-    - Engagement patterns
-    - Channel preferences
+    Uses Tavily API and LLM to build:
+    - Ideal Customer Profile (ICP)
+    - Buyer Personas with detailed characteristics
+    - Pain Point Analysis
+    - Buying Journey Mapping
+    - Messaging Matrix per persona
+    - Channel Strategy recommendations
+
+    This is a core Intelligence Squad agent (Phase 5.4).
+
+    Key Feature: Synthesizes data from other intelligence agents:
+    - market_research: Market trends, competitors, opportunities
+    - seo_data: Keyword clusters, search intent, content gaps
+    - web_analysis: Website insights, UX analysis, competitor web profiles
+
+    Input: Expects audience building parameters in state["messages"] with type="audience_building_input"
+           or via workflow trigger payload.
+
+    Output: Populates state["audience_data"] with structured audience profiles.
     """
-    logger.info("[Audience Builder] Building audience profiles")
+    logger.info("[Audience Builder] Building audience profiles and personas")
 
-    # TODO: Implement actual audience building logic
+    # Extract audience building input from state
+    audience_input: AudienceBuildingInput | None = None
 
-    return {
-        "audience_data": {
-            "personas": [],
-            "segments": [],
-            "engagement_patterns": {},
-            "preferred_channels": [],
-        },
-        "agent_execution_log": [
-            _create_execution_log("audience_builder", "build_audience")
-        ],
-        "messages": [
-            _create_agent_message(
-                from_agent="audience_builder",
-                content="Audience profiles built (stub)",
-                message_type="info",
-            )
-        ],
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+    # Look for audience building input in messages
+    for message in state.get("messages", []):
+        if message.get("message_type") == "audience_building_input":
+            try:
+                input_data = message.get("metadata", {})
+
+                # Parse company sizes
+                target_company_sizes = []
+                for size in input_data.get("target_company_sizes", []):
+                    try:
+                        target_company_sizes.append(CompanySize(size))
+                    except ValueError:
+                        pass
+
+                audience_input = AudienceBuildingInput(
+                    product_category=input_data.get("product_category", ""),
+                    value_proposition=input_data.get("value_proposition"),
+                    target_market=input_data.get("target_market"),
+                    geographic_focus=input_data.get("geographic_focus"),
+                    target_company_sizes=target_company_sizes,
+                    target_industries=input_data.get("target_industries", []),
+                    existing_customer_traits=input_data.get("existing_customer_traits", []),
+                    known_pain_points=input_data.get("known_pain_points", []),
+                    use_intelligence_data=input_data.get("use_intelligence_data", True),
+                    num_personas=input_data.get("num_personas", 3),
+                    additional_context=input_data.get("additional_context"),
+                )
+                break
+            except Exception as e:
+                logger.warning(f"[Audience Builder] Failed to parse audience input: {e}")
+
+    if not audience_input:
+        # No audience input found - return error state
+        logger.warning("[Audience Builder] No audience input provided")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "audience_builder",
+                    "error",
+                    {"error": "No audience input provided"}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="audience_builder",
+                    content="Error: No audience building input provided. Please provide product category and target market information.",
+                    message_type="error",
+                )
+            ],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # Get client context
+    client_context = state.get("client", {})
+
+    # Gather intelligence context from other agents
+    intelligence_context = _gather_intelligence_context(state) if audience_input.use_intelligence_data else {
+        "market_research": None,
+        "seo_data": None,
+        "web_analysis": None,
+        "sources_available": [],
     }
+
+    logger.info(
+        f"[Audience Builder] Intelligence sources available: {intelligence_context['sources_available']}"
+    )
+
+    try:
+        # Run async research in sync context
+        try:
+            loop = asyncio.get_running_loop()
+            import nest_asyncio
+            nest_asyncio.apply()
+
+            # First conduct audience research
+            research_data = loop.run_until_complete(
+                _conduct_audience_research_with_tavily(audience_input, intelligence_context)
+            )
+
+            # Then analyze with LLM
+            analysis = loop.run_until_complete(
+                _analyze_audience_with_llm(
+                    audience_input, research_data, intelligence_context, client_context
+                )
+            )
+        except RuntimeError:
+            # No event loop running, create a new one
+            research_data = asyncio.run(
+                _conduct_audience_research_with_tavily(audience_input, intelligence_context)
+            )
+            analysis = asyncio.run(
+                _analyze_audience_with_llm(
+                    audience_input, research_data, intelligence_context, client_context
+                )
+            )
+
+        # Convert to state format
+        audience_data_state = _convert_audience_to_state_format(analysis)
+
+        return {
+            "audience_data": audience_data_state,
+            "agent_execution_log": [
+                _create_execution_log(
+                    "audience_builder",
+                    "build_audience",
+                    {
+                        "product_category": audience_input.product_category,
+                        "target_market": audience_input.target_market,
+                        "personas_created": len(analysis.buyer_personas),
+                        "pain_points_identified": len(analysis.pain_point_analysis),
+                        "journey_stages": len(analysis.buying_journey),
+                        "channel_strategies": len(analysis.channel_strategy),
+                        "intelligence_sources": intelligence_context.get("sources_available", []),
+                        "confidence": analysis.confidence_level.value if hasattr(analysis.confidence_level, 'value') else str(analysis.confidence_level),
+                    }
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="audience_builder",
+                    content=f"Audience analysis completed for {audience_input.product_category}: "
+                            f"{len(analysis.buyer_personas)} personas created, "
+                            f"{len(analysis.pain_point_analysis)} pain points identified, "
+                            f"{len(analysis.buying_journey)} journey stages mapped, "
+                            f"{len(analysis.channel_strategy)} channel strategies recommended",
+                    message_type="info",
+                    metadata={
+                        "product_category": audience_input.product_category,
+                        "analysis_summary": analysis.analysis_summary,
+                        "persona_names": [p.persona_name for p in analysis.buyer_personas],
+                        "confidence_level": analysis.confidence_level.value if hasattr(analysis.confidence_level, 'value') else str(analysis.confidence_level),
+                        "quick_wins": analysis.quick_wins[:3] if analysis.quick_wins else [],
+                        "intelligence_sources": intelligence_context.get("sources_available", []),
+                    },
+                )
+            ],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except TavilyError as e:
+        logger.error(f"[Audience Builder] Tavily error: {e}")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "audience_builder",
+                    "error",
+                    {"error": str(e), "type": "tavily_error"}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="audience_builder",
+                    content=f"Error conducting audience research: {e.message}",
+                    message_type="error",
+                )
+            ],
+            "error_message": f"Audience Builder Agent Error (Tavily): {e.message}",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except LLMError as e:
+        logger.error(f"[Audience Builder] LLM error: {e}")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "audience_builder",
+                    "error",
+                    {"error": str(e), "provider": e.provider.value if e.provider else None}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="audience_builder",
+                    content=f"Error analyzing audience data: {e.message}",
+                    message_type="error",
+                )
+            ],
+            "error_message": f"Audience Builder Agent Error (LLM): {e.message}",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.exception(f"[Audience Builder] Unexpected error: {e}")
+        return {
+            "agent_execution_log": [
+                _create_execution_log(
+                    "audience_builder",
+                    "error",
+                    {"error": str(e)}
+                )
+            ],
+            "messages": [
+                _create_agent_message(
+                    from_agent="audience_builder",
+                    content=f"Unexpected error in audience building: {str(e)}",
+                    message_type="error",
+                )
+            ],
+            "error_message": f"Audience Builder Agent Error: {str(e)}",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
 
 
 # =============================================================================
