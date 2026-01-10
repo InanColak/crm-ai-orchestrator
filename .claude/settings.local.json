@@ -45,7 +45,10 @@
       "Bash(netstat:*)",
       "Bash(powershell \"netstat -ano | Select-String '':8000''\")",
       "Bash(cmd //c \"taskkill /PID 2672 /F\")",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash($env:PYTHONPATH = \".\")",
+      "Bash(Select-String -Pattern \"html\" -Quiet)",
+      "Bash(PYTHONPATH=. python:*)"
     ]
   }
 }

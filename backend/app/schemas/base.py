@@ -14,29 +14,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+# Import canonical enums from workflow.py (single source of truth)
+from backend.app.schemas.workflow import WorkflowStatus, WorkflowType
+
 
 # =============================================================================
 # ENUMS
 # =============================================================================
-
-class WorkflowStatus(str, Enum):
-    """Workflow execution status."""
-    PENDING = "pending"
-    RUNNING = "running"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class WorkflowType(str, Enum):
-    """Available workflow types."""
-    MEETING_ANALYSIS = "meeting_analysis"
-    LEAD_RESEARCH = "lead_research"
-    CONTENT_GENERATION = "content_generation"
-    SEO_ANALYSIS = "seo_analysis"
-    MARKET_RESEARCH = "market_research"
-    EMAIL_CAMPAIGN = "email_campaign"
 
 
 class ApprovalStatus(str, Enum):

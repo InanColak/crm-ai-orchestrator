@@ -18,7 +18,7 @@ import type {
 } from '@/types/document';
 
 // Default client ID (will be replaced with auth context)
-const DEFAULT_CLIENT_ID = 'client-123';
+const DEFAULT_CLIENT_ID = process.env.NEXT_PUBLIC_CLIENT_ID || 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
 // =============================================================================
 // USE DOCUMENTS HOOK

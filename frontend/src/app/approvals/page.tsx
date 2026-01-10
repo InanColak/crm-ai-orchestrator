@@ -113,7 +113,7 @@ export default function ApprovalsPage() {
     if (apiError) {
       setUseMockData(true);
       setDisplayApprovals(mockApprovals);
-    } else if (apiApprovals.length > 0) {
+    } else if (apiApprovals && apiApprovals.length > 0) {
       setUseMockData(false);
       setDisplayApprovals(apiApprovals);
     }
@@ -264,18 +264,18 @@ export default function ApprovalsPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-gray-900 truncate">
+                            <p className="text-sm font-medium text-white truncate">
                               {approval.title}
                             </p>
                             <span className="text-xs text-gray-400 shrink-0">
                               {formatRelativeTime(approval.created_at)}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                          <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">
                             {approval.description}
                           </p>
                           <div className="flex items-center gap-2 mt-2">
-                            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                            <span className="inline-flex items-center rounded-full bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-200">
                               {getApprovalTypeLabel(approval.approval_type)}
                             </span>
                           </div>
@@ -292,11 +292,11 @@ export default function ApprovalsPage() {
           <div className="lg:sticky lg:top-24 h-fit">
             {selectedApproval ? (
               <Card padding="none">
-                <div className="p-4 border-b border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900">
+                <div className="p-4 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-white">
                     {selectedApproval.title}
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-gray-400 mt-1">
                     {selectedApproval.description}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
@@ -311,15 +311,15 @@ export default function ApprovalsPage() {
 
                 <div className="p-4 space-y-4">
                   <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                    <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
                       Action Details
                     </h4>
-                    <pre className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 overflow-x-auto max-h-64">
+                    <pre className="bg-gray-800 rounded-lg p-3 text-xs text-gray-200 overflow-x-auto max-h-64">
                       {JSON.stringify(selectedApproval.data, null, 2)}
                     </pre>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                  <div className="flex items-center gap-2 pt-2 border-t border-gray-700">
                     <Button
                       variant="primary"
                       className="flex-1"
@@ -345,7 +345,7 @@ export default function ApprovalsPage() {
               <Card className="flex items-center justify-center h-64">
                 <div className="text-center">
                   <Eye className="mx-auto h-10 w-10 text-gray-300" />
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-2 text-sm text-gray-400">
                     Select an approval to view details
                   </p>
                 </div>

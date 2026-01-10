@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
+from backend.app.core.config import get_settings
 from backend.app.core.dependencies import ClientContextDep, SettingsDep
 from backend.services.oauth_service import (
     CRMConnection,
@@ -137,6 +138,10 @@ async def hubspot_callback(
     **Note:** This endpoint is called directly by HubSpot, not by the frontend.
     After processing, it redirects to the frontend with the connection status.
     """
+    # Get frontend URL from config
+    settings = get_settings()
+    frontend_redirect = f"{settings.frontend_url}/settings/integrations"
+
     try:
         oauth_service = await get_oauth_service()
         connection = await oauth_service.handle_callback(
@@ -146,24 +151,20 @@ async def hubspot_callback(
         )
 
         # Redirect to frontend with success
-        # In production, this URL comes from settings
-        frontend_url = "http://localhost:3000/settings/integrations"
         return RedirectResponse(
-            url=f"{frontend_url}?status=connected&provider=hubspot&portal_id={connection.portal_id}",
+            url=f"{frontend_redirect}?status=connected&provider=hubspot&portal_id={connection.portal_id}",
             status_code=status.HTTP_302_FOUND
         )
 
     except OAuthStateError as e:
-        frontend_url = "http://localhost:3000/settings/integrations"
         return RedirectResponse(
-            url=f"{frontend_url}?status=error&provider=hubspot&error=invalid_state",
+            url=f"{frontend_redirect}?status=error&provider=hubspot&error=invalid_state",
             status_code=status.HTTP_302_FOUND
         )
 
     except OAuthTokenError as e:
-        frontend_url = "http://localhost:3000/settings/integrations"
         return RedirectResponse(
-            url=f"{frontend_url}?status=error&provider=hubspot&error=token_exchange_failed",
+            url=f"{frontend_redirect}?status=error&provider=hubspot&error=token_exchange_failed",
             status_code=status.HTTP_302_FOUND
         )
 

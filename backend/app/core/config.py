@@ -46,6 +46,17 @@ class Settings(BaseSettings):
     # API CONFIG
     # =========================================================================
     api_v1_prefix: str = Field(default="/api/v1", description="API version prefix")
+
+    # Frontend/Backend URLs for redirects and CORS
+    frontend_url: str = Field(
+        default="http://localhost:3000",
+        description="Frontend application URL (used for OAuth redirects)"
+    )
+    backend_url: str = Field(
+        default="http://localhost:8080",
+        description="Backend API URL"
+    )
+
     cors_origins: list[str] = Field(
         default=[
             "http://localhost:3000", "http://127.0.0.1:3000",

@@ -31,7 +31,8 @@ import type {
 } from '@/types/document';
 
 // API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const CLIENT_ID = process.env.NEXT_PUBLIC_CLIENT_ID || 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
 // Error class for API errors
 export class ApiError extends Error {
@@ -54,6 +55,7 @@ async function apiFetch<T>(
 
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
+    'X-Client-ID': CLIENT_ID,
   };
 
   const response = await fetch(url, {
@@ -85,7 +87,7 @@ export const workflowApi = {
    * Trigger a new workflow
    */
   async trigger(request: WorkflowTriggerRequest): Promise<WorkflowTriggerResponse> {
-    return apiFetch<WorkflowTriggerResponse>('/api/v1/workflow/trigger', {
+    return apiFetch<WorkflowTriggerResponse>('/api/v1/workflows', {
       method: 'POST',
       body: JSON.stringify(request),
     });
@@ -107,28 +109,28 @@ export const workflowApi = {
     if (params?.page_size) searchParams.set('page_size', params.page_size.toString());
 
     const query = searchParams.toString();
-    return apiFetch<WorkflowListResponse>(`/api/v1/workflow/list${query ? `?${query}` : ''}`);
+    return apiFetch<WorkflowListResponse>(`/api/v1/workflows${query ? `?${query}` : ''}`);
   },
 
   /**
    * Get workflow by ID
    */
   async get(workflowId: string): Promise<Workflow> {
-    return apiFetch<Workflow>(`/api/v1/workflow/${workflowId}`);
+    return apiFetch<Workflow>(`/api/v1/workflows/${workflowId}`);
   },
 
   /**
    * Get workflow statistics
    */
   async getStats(): Promise<WorkflowStats> {
-    return apiFetch<WorkflowStats>('/api/v1/workflow/stats');
+    return apiFetch<WorkflowStats>('/api/v1/workflows/stats');
   },
 
   /**
    * Resume a paused workflow
    */
   async resume(workflowId: string, additionalInput?: Record<string, unknown>): Promise<WorkflowTriggerResponse> {
-    return apiFetch<WorkflowTriggerResponse>(`/api/v1/workflow/${workflowId}/resume`, {
+    return apiFetch<WorkflowTriggerResponse>(`/api/v1/workflows/${workflowId}/resume`, {
       method: 'POST',
       body: JSON.stringify({ additional_input: additionalInput }),
     });
@@ -138,8 +140,8 @@ export const workflowApi = {
    * Cancel a workflow
    */
   async cancel(workflowId: string, reason?: string): Promise<{ success: boolean; message: string }> {
-    return apiFetch<{ success: boolean; message: string }>(`/api/v1/workflow/${workflowId}/cancel`, {
-      method: 'POST',
+    return apiFetch<{ success: boolean; message: string }>(`/api/v1/workflows/${workflowId}/cancel`, {
+      method: 'DELETE',
       body: JSON.stringify({ reason }),
     });
   },

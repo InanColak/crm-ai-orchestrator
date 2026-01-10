@@ -17,7 +17,6 @@ from uuid import UUID
 import httpx
 from pydantic import BaseModel
 from supabase import create_client, Client as SupabaseClient
-from supabase.lib.client_options import ClientOptions
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -104,15 +103,15 @@ class SupabaseService:
             return
 
         try:
+            # Log connection attempt
+            logger.info(f"Connecting to Supabase: {self._settings.supabase_url}")
+            logger.info(f"Using key starting with: {self._settings.supabase_key[:20]}...")
+
             # Create standard client (uses anon key)
-            options = ClientOptions(
-                postgrest_client_timeout=30,
-                storage_client_timeout=60,
-            )
+            # Note: supabase-py v2.x has simplified options
             self._client = create_client(
                 self._settings.supabase_url,
                 self._settings.supabase_key,
-                options=options,
             )
 
             # Create admin client if service key is available
@@ -120,7 +119,6 @@ class SupabaseService:
                 self._admin_client = create_client(
                     self._settings.supabase_url,
                     self._settings.supabase_service_key,
-                    options=options,
                 )
 
             # Create async HTTP client for direct REST calls
@@ -139,11 +137,13 @@ class SupabaseService:
             logger.info("Supabase client initialized successfully")
 
         except Exception as e:
+            import traceback
             logger.error(f"Failed to initialize Supabase client: {e}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             raise ConnectionError(
-                message="Failed to initialize Supabase connection",
+                message=f"Failed to initialize Supabase connection: {str(e)}",
                 operation="initialize",
-                details={"error": str(e)},
+                details={"error": str(e), "traceback": traceback.format_exc()},
             )
 
     async def close(self) -> None:

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout';
 import { Card, Button, StatusBadge, EmptyState, CardSkeleton, useToast } from '@/components/ui';
+import { NewWorkflowModal } from '@/components/workflows';
 import { Plus, Workflow, ChevronRight, Search, RefreshCw, AlertCircle } from 'lucide-react';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { useWorkflows, useWorkflowRealtime } from '@/hooks';
@@ -27,10 +28,10 @@ const mockWorkflows: WorkflowT[] = [
   {
     id: 'wf-002',
     client_id: 'client-123',
-    workflow_type: 'email_generation',
+    workflow_type: 'sales_ops_only',
     status: 'running',
     priority: 'high',
-    input_data: { recipient: 'john@techstart.io' },
+    input_data: { company_name: 'TechStart Inc' },
     output_data: null,
     error_message: null,
     created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
@@ -53,7 +54,7 @@ const mockWorkflows: WorkflowT[] = [
   {
     id: 'wf-004',
     client_id: 'client-123',
-    workflow_type: 'lead_research',
+    workflow_type: 'intelligence_only',
     status: 'failed',
     priority: 'low',
     input_data: { company_name: 'Unknown LLC' },
@@ -66,10 +67,10 @@ const mockWorkflows: WorkflowT[] = [
   {
     id: 'wf-005',
     client_id: 'client-123',
-    workflow_type: 'content_pipeline',
+    workflow_type: 'lead_research',
     status: 'pending',
     priority: 'normal',
-    input_data: { topic: 'AI in Sales' },
+    input_data: { company_name: 'NewCo' },
     output_data: null,
     error_message: null,
     created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
@@ -92,6 +93,7 @@ export default function WorkflowsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [displayWorkflows, setDisplayWorkflows] = useState<WorkflowT[]>(mockWorkflows);
   const [useMockData, setUseMockData] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { success, error: showError, info } = useToast();
 
@@ -119,7 +121,7 @@ export default function WorkflowsPage() {
     if (apiError) {
       setUseMockData(true);
       setDisplayWorkflows(mockWorkflows);
-    } else if (apiWorkflows.length > 0) {
+    } else if (apiWorkflows && apiWorkflows.length > 0) {
       setUseMockData(false);
       setDisplayWorkflows(apiWorkflows);
     }
@@ -149,6 +151,11 @@ export default function WorkflowsPage() {
       await refetch();
       success('Refreshed', 'Workflow list updated');
     }
+  };
+
+  const handleWorkflowCreated = (workflowId: string) => {
+    success('Workflow Started', `Workflow ${workflowId} has been triggered`);
+    refetch();
   };
 
   return (
@@ -198,7 +205,10 @@ export default function WorkflowsPage() {
             </Button>
           </div>
 
-          <Button icon={<Plus className="h-4 w-4" />}>
+          <Button
+            icon={<Plus className="h-4 w-4" />}
+            onClick={() => setIsModalOpen(true)}
+          >
             New Workflow
           </Button>
         </div>
@@ -241,7 +251,10 @@ export default function WorkflowsPage() {
                 : 'Get started by triggering a new workflow'
             }
             action={
-              <Button icon={<Plus className="h-4 w-4" />}>
+              <Button
+                icon={<Plus className="h-4 w-4" />}
+                onClick={() => setIsModalOpen(true)}
+              >
                 New Workflow
               </Button>
             }
@@ -261,12 +274,12 @@ export default function WorkflowsPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-white">
                           {getWorkflowTypeLabel(workflow.workflow_type)}
                         </p>
                         <StatusBadge status={workflow.status} size="sm" />
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-xs text-gray-400 mt-0.5">
                         {Object.values(workflow.input_data)[0] as string} • Started {formatRelativeTime(workflow.created_at)}
                       </p>
                       {workflow.error_message && (
@@ -286,6 +299,13 @@ export default function WorkflowsPage() {
           </div>
         )}
       </div>
+
+      {/* New Workflow Modal */}
+      <NewWorkflowModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleWorkflowCreated}
+      />
     </div>
   );
 }

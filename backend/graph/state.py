@@ -15,21 +15,13 @@ from datetime import datetime
 from enum import Enum
 import operator
 
+# Import canonical WorkflowStatus from workflow.py (single source of truth)
+from backend.app.schemas.workflow import WorkflowStatus
+
 
 # ============================================================================
-# ENUM DEFINITIONS
+# ENUM DEFINITIONS (LangGraph-specific enums only)
 # ============================================================================
-
-class WorkflowStatus(str, Enum):
-    """Workflow durumları"""
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    AWAITING_APPROVAL = "awaiting_approval"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
 
 class ApprovalType(str, Enum):
     """Onay gerektiren aksiyon türleri"""

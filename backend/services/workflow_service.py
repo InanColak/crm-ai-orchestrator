@@ -372,7 +372,7 @@ class WorkflowService:
                 stats.pending += 1
             elif status == WorkflowStatus.RUNNING.value:
                 stats.running += 1
-            elif status == WorkflowStatus.AWAITING_APPROVAL.value:
+            elif status == WorkflowStatus.WAITING_APPROVAL.value:
                 stats.awaiting_approval += 1
 
             # Today's counts
@@ -436,10 +436,10 @@ class WorkflowService:
         status = WorkflowStatus(record["status"])
 
         # Validate state
-        if status not in (WorkflowStatus.AWAITING_APPROVAL, WorkflowStatus.PAUSED):
+        if status != WorkflowStatus.WAITING_APPROVAL:
             raise WorkflowInvalidStateError(
                 f"Cannot resume workflow in '{status.value}' state. "
-                f"Only 'awaiting_approval' or 'paused' workflows can be resumed."
+                f"Only 'waiting_approval' workflows can be resumed."
             )
 
         # Update status
@@ -616,7 +616,7 @@ class WorkflowService:
                     self.TABLE_NAME,
                     {"id": str(workflow_id)},
                     {
-                        "status": WorkflowStatus.AWAITING_APPROVAL.value,
+                        "status": WorkflowStatus.WAITING_APPROVAL.value,
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                         "current_step": "awaiting_approval",
                         "progress": 50,

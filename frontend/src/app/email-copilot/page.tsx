@@ -97,14 +97,14 @@ Your Name`,
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Input Form */}
           <Card>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <h2 className="text-lg font-semibold text-white mb-4">
               Email Details
             </h2>
 
             <div className="space-y-4">
               {/* Email Type */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
                   Email Type
                 </label>
                 <div className="grid grid-cols-3 gap-2">
@@ -115,14 +115,14 @@ Your Name`,
                       className={cn(
                         'p-3 rounded-lg border text-left transition-all',
                         emailType === type.value
-                          ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-brand-500 bg-brand-900/50 ring-1 ring-brand-500'
+                          : 'border-gray-600 hover:border-gray-500'
                       )}
                     >
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-white">
                         {type.label}
                       </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-xs text-gray-400 mt-0.5">
                         {type.description}
                       </p>
                     </button>
@@ -133,7 +133,7 @@ Your Name`,
               {/* Recipient Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
                     Recipient Name
                   </label>
                   <div className="relative">
@@ -148,7 +148,7 @@ Your Name`,
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
                     Recipient Email
                   </label>
                   <div className="relative">
@@ -166,7 +166,7 @@ Your Name`,
 
               {/* Company */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
                   Company
                 </label>
                 <div className="relative">
@@ -183,7 +183,7 @@ Your Name`,
 
               {/* Context */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
                   Additional Context (optional)
                 </label>
                 <textarea
@@ -211,7 +211,7 @@ Your Name`,
           {/* Generated Email */}
           <Card>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className="text-lg font-semibold text-white">
                 Generated Email
               </h2>
               {generatedEmail && (
@@ -246,11 +246,11 @@ Your Name`,
               <div className="space-y-4">
                 {/* Subject */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  <label className="block text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
                     Subject
                   </label>
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <p className="text-sm text-gray-900">
+                  <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                    <p className="text-sm text-white">
                       {generatedEmail.subject}
                     </p>
                   </div>
@@ -258,11 +258,11 @@ Your Name`,
 
                 {/* Body */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  <label className="block text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
                     Body
                   </label>
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <pre className="text-sm text-gray-900 whitespace-pre-wrap font-sans">
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <pre className="text-sm text-gray-200 whitespace-pre-wrap font-sans">
                       {generatedEmail.body}
                     </pre>
                   </div>
@@ -280,10 +280,10 @@ Your Name`,
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-80 text-center">
-                <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                <div className="h-16 w-16 rounded-full bg-gray-700 flex items-center justify-center mb-4">
                   <Sparkles className="h-8 w-8 text-gray-400" />
                 </div>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-400">
                   Fill in the details and click "Generate Email" to create a
                   personalized message
                 </p>

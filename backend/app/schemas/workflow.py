@@ -43,15 +43,33 @@ class WorkflowType(str, Enum):
 
 
 class WorkflowStatus(str, Enum):
-    """Workflow execution status."""
+    """
+    Workflow execution status - SINGLE SOURCE OF TRUTH.
+
+    These values MUST match the database constraint in:
+    supabase/migrations/001_initial_schema.sql
+
+    CONSTRAINT valid_status CHECK (status IN (
+        'pending', 'running', 'waiting_approval',
+        'completed', 'failed', 'cancelled'
+    ))
+    """
     PENDING = "pending"
-    QUEUED = "queued"
     RUNNING = "running"
-    AWAITING_APPROVAL = "awaiting_approval"
-    PAUSED = "paused"
+    WAITING_APPROVAL = "waiting_approval"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+    @classmethod
+    def active_statuses(cls) -> list["WorkflowStatus"]:
+        """Statuses that indicate an active/in-progress workflow."""
+        return [cls.PENDING, cls.RUNNING, cls.WAITING_APPROVAL]
+
+    @classmethod
+    def terminal_statuses(cls) -> list["WorkflowStatus"]:
+        """Statuses that indicate a finished workflow."""
+        return [cls.COMPLETED, cls.FAILED, cls.CANCELLED]
 
 
 class WorkflowPriority(str, Enum):

@@ -128,9 +128,21 @@ def create_application() -> FastAPI:
     # =========================================================================
     # CORS MIDDLEWARE
     # =========================================================================
+    # Use CORS origins from config (environment-based)
+    cors_origins = settings.cors_origins
+
+    # In development, ensure common localhost ports are included
+    if settings.is_development:
+        dev_origins = [
+            f"http://localhost:{port}" for port in range(3000, 3006)
+        ] + [
+            f"http://127.0.0.1:{port}" for port in range(3000, 3006)
+        ]
+        cors_origins = list(set(cors_origins + dev_origins))
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

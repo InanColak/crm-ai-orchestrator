@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Header } from '@/components/layout';
-import { Card, CardHeader, Skeleton, useToast } from '@/components/ui';
+import { Card, CardHeader, Skeleton, useToast, Button, EmptyState } from '@/components/ui';
 import {
   Workflow,
   CheckCircle,
@@ -12,24 +12,28 @@ import {
   Users,
   FileText,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { useWorkflows, useWorkflowStats, useApprovals } from '@/hooks';
 import { formatRelativeTime } from '@/lib/utils';
 import type { Workflow as WorkflowT } from '@/types/workflow';
 import { getWorkflowTypeLabel } from '@/types/workflow';
 
-// Mock data for fallback
-const mockStats = {
+// Demo mode is controlled by environment variable
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+
+// Demo data - only used when NEXT_PUBLIC_DEMO_MODE=true
+const demoStats = {
   activeWorkflows: 12,
   pendingApprovals: 5,
   emailsGenerated: 48,
   leadsResearched: 156,
 };
 
-const mockRecentWorkflows: WorkflowT[] = [
+const demoWorkflows: WorkflowT[] = [
   {
-    id: 'wf-001',
-    client_id: 'client-123',
+    id: 'demo-wf-001',
+    client_id: 'demo-client',
     workflow_type: 'lead_research',
     status: 'completed',
     priority: 'normal',
@@ -41,41 +45,15 @@ const mockRecentWorkflows: WorkflowT[] = [
     completed_at: new Date().toISOString(),
   },
   {
-    id: 'wf-002',
-    client_id: 'client-123',
-    workflow_type: 'email_generation',
+    id: 'demo-wf-002',
+    client_id: 'demo-client',
+    workflow_type: 'meeting_analysis',
     status: 'running',
     priority: 'high',
-    input_data: { recipient: 'TechStart Inc' },
+    input_data: { meeting_title: 'Sales Call - TechStart Inc' },
     output_data: null,
     error_message: null,
     created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-    updated_at: new Date().toISOString(),
-    completed_at: null,
-  },
-  {
-    id: 'wf-003',
-    client_id: 'client-123',
-    workflow_type: 'meeting_analysis',
-    status: 'waiting_approval',
-    priority: 'normal',
-    input_data: { meeting_title: 'Sales Call - DataFlow' },
-    output_data: null,
-    error_message: null,
-    created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    updated_at: new Date().toISOString(),
-    completed_at: null,
-  },
-  {
-    id: 'wf-004',
-    client_id: 'client-123',
-    workflow_type: 'lead_research',
-    status: 'failed',
-    priority: 'low',
-    input_data: { company_name: 'Unknown Company' },
-    output_data: null,
-    error_message: 'Could not find company',
-    created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date().toISOString(),
     completed_at: null,
   },
@@ -90,42 +68,45 @@ const statusColors: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const [useMockData, setUseMockData] = useState(false);
-
   const { info } = useToast();
 
   // Fetch real data
-  const { stats, isLoading: statsLoading, error: statsError } = useWorkflowStats();
-  const { workflows, isLoading: workflowsLoading, error: workflowsError } = useWorkflows({ pageSize: 4 });
+  const { stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useWorkflowStats();
+  const { workflows, isLoading: workflowsLoading, error: workflowsError, refetch: refetchWorkflows } = useWorkflows({ pageSize: 4 });
   const { pendingCount, error: approvalsError } = useApprovals({ status: 'pending' });
 
-  // Check if we should use mock data
-  useEffect(() => {
-    if (statsError || workflowsError || approvalsError) {
-      setUseMockData(true);
-    } else if (stats || workflows.length > 0) {
-      setUseMockData(false);
-    }
-  }, [stats, statsError, workflows, workflowsError, approvalsError]);
+  // Determine if there's an API error
+  const hasApiError = !!(statsError || workflowsError || approvalsError);
+  const isLoading = statsLoading || workflowsLoading;
 
-  // Display data (API or mock)
-  const displayStats = useMockData
+  // Use demo data only in demo mode
+  const showDemoData = DEMO_MODE && hasApiError;
+
+  // Handle retry
+  const handleRetry = () => {
+    refetchStats?.();
+    refetchWorkflows?.();
+  };
+
+  // Build stats display
+  const displayStats = showDemoData
     ? [
-        { label: 'Active Workflows', value: mockStats.activeWorkflows.toString(), change: '+3 today', icon: Workflow, color: 'text-[#00C0F0]', bgColor: 'bg-[#00C0F0]/20' },
-        { label: 'Pending Approvals', value: mockStats.pendingApprovals.toString(), change: 'Requires action', icon: CheckCircle, color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
-        { label: 'Emails Generated', value: mockStats.emailsGenerated.toString(), change: 'This week', icon: Mail, color: 'text-green-400', bgColor: 'bg-green-500/20' },
-        { label: 'Leads Researched', value: mockStats.leadsResearched.toString(), change: 'This month', icon: Users, color: 'text-orange-400', bgColor: 'bg-orange-500/20' },
+        { label: 'Active Workflows', value: demoStats.activeWorkflows.toString(), change: 'Demo data', icon: Workflow, color: 'text-[#00C0F0]', bgColor: 'bg-[#00C0F0]/20' },
+        { label: 'Pending Approvals', value: demoStats.pendingApprovals.toString(), change: 'Demo data', icon: CheckCircle, color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
+        { label: 'Emails Generated', value: demoStats.emailsGenerated.toString(), change: 'Demo data', icon: Mail, color: 'text-green-400', bgColor: 'bg-green-500/20' },
+        { label: 'Leads Researched', value: demoStats.leadsResearched.toString(), change: 'Demo data', icon: Users, color: 'text-orange-400', bgColor: 'bg-orange-500/20' },
       ]
     : [
         { label: 'Active Workflows', value: (stats?.running_count ?? 0).toString(), change: `${stats?.pending_count ?? 0} pending`, icon: Workflow, color: 'text-[#00C0F0]', bgColor: 'bg-[#00C0F0]/20' },
-        { label: 'Pending Approvals', value: pendingCount.toString(), change: 'Requires action', icon: CheckCircle, color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
+        { label: 'Pending Approvals', value: (pendingCount ?? 0).toString(), change: 'Requires action', icon: CheckCircle, color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
         { label: 'Completed', value: (stats?.completed_count ?? 0).toString(), change: `${((stats?.success_rate ?? 0) * 100).toFixed(0)}% success`, icon: Mail, color: 'text-green-400', bgColor: 'bg-green-500/20' },
         { label: 'Total Workflows', value: (stats?.total_workflows ?? 0).toString(), change: 'All time', icon: Users, color: 'text-orange-400', bgColor: 'bg-orange-500/20' },
       ];
 
-  const displayWorkflows = useMockData ? mockRecentWorkflows : workflows.slice(0, 4);
-
-  const isLoading = statsLoading || workflowsLoading;
+  // Build workflows display with null safety
+  const displayWorkflows = showDemoData
+    ? demoWorkflows
+    : (workflows ?? []).slice(0, 4);
 
   return (
     <div className="min-h-screen">
@@ -136,21 +117,50 @@ export default function DashboardPage() {
 
       <div className="p-6 space-y-6">
         {/* Demo Mode Banner */}
-        {useMockData && (
+        {showDemoData && (
           <div className="flex items-center gap-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 px-4 py-3">
             <AlertCircle className="h-5 w-5 text-yellow-400 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium text-yellow-400">Demo Mode</p>
               <p className="text-xs text-yellow-500/80">
-                Backend API not available. Showing mock data for demonstration.
+                Backend API not available. Showing demo data for demonstration.
               </p>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRetry}
+              icon={<RefreshCw className="h-4 w-4" />}
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {/* API Error Banner (non-demo mode) */}
+        {hasApiError && !DEMO_MODE && (
+          <div className="flex items-center gap-3 rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3">
+            <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-400">Connection Error</p>
+              <p className="text-xs text-red-500/80">
+                Unable to connect to the backend API. Please check if the server is running.
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRetry}
+              icon={<RefreshCw className="h-4 w-4" />}
+            >
+              Retry
+            </Button>
           </div>
         )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {isLoading && !useMockData ? (
+          {isLoading ? (
             // Loading skeletons
             Array.from({ length: 4 }).map((_, i) => (
               <Card key={i}>
@@ -195,7 +205,7 @@ export default function DashboardPage() {
                 description="Latest AI agent activities"
               />
             </div>
-            {isLoading && !useMockData ? (
+            {isLoading ? (
               <div className="p-4 space-y-3">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="flex items-center gap-3">
@@ -207,6 +217,19 @@ export default function DashboardPage() {
                     <Skeleton className="h-5 w-16 rounded-full" />
                   </div>
                 ))}
+              </div>
+            ) : displayWorkflows.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={<Workflow className="h-6 w-6 text-gray-400" />}
+                  title="No workflows yet"
+                  description="Create your first workflow to get started"
+                  action={
+                    <Link href="/workflows">
+                      <Button>Go to Workflows</Button>
+                    </Link>
+                  }
+                />
               </div>
             ) : (
               <>
@@ -225,13 +248,13 @@ export default function DashboardPage() {
                             {getWorkflowTypeLabel(workflow.workflow_type)}
                           </p>
                           <p className="text-xs text-[#9D9D9D]">
-                            {Object.values(workflow.input_data)[0] as string}
+                            {workflow.input_data ? (Object.values(workflow.input_data)[0] as string) : 'No input data'}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[workflow.status]}`}
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[workflow.status] ?? 'bg-gray-500/20 text-gray-400'}`}
                         >
                           {workflow.status === 'running' && (
                             <span className="mr-1 h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
@@ -266,18 +289,17 @@ export default function DashboardPage() {
               />
             </div>
             <div className="p-4 space-y-2">
-              <button
-                className="w-full flex items-center gap-3 rounded-lg border border-[#414141] p-3 text-left hover:bg-[#414141]/30 transition-colors"
-                onClick={() => info('Coming Soon', 'Lead Research workflow will be available soon')}
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#00C0F0]/20">
-                  <Users className="h-4 w-4 text-[#00C0F0]" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-white">Research Lead</p>
-                  <p className="text-xs text-[#9D9D9D]">Analyze a new prospect</p>
-                </div>
-              </button>
+              <Link href="/workflows">
+                <button className="w-full flex items-center gap-3 rounded-lg border border-[#414141] p-3 text-left hover:bg-[#414141]/30 transition-colors">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#00C0F0]/20">
+                    <Users className="h-4 w-4 text-[#00C0F0]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">Research Lead</p>
+                    <p className="text-xs text-[#9D9D9D]">Analyze a new prospect</p>
+                  </div>
+                </button>
+              </Link>
               <Link href="/email-copilot">
                 <button className="w-full flex items-center gap-3 rounded-lg border border-[#414141] p-3 text-left hover:bg-[#414141]/30 transition-colors">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/20">
@@ -289,18 +311,17 @@ export default function DashboardPage() {
                   </div>
                 </button>
               </Link>
-              <button
-                className="w-full flex items-center gap-3 rounded-lg border border-[#414141] p-3 text-left hover:bg-[#414141]/30 transition-colors"
-                onClick={() => info('Coming Soon', 'Meeting Analysis workflow will be available soon')}
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/20">
-                  <FileText className="h-4 w-4 text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-white">Analyze Meeting</p>
-                  <p className="text-xs text-[#9D9D9D]">Extract action items</p>
-                </div>
-              </button>
+              <Link href="/workflows">
+                <button className="w-full flex items-center gap-3 rounded-lg border border-[#414141] p-3 text-left hover:bg-[#414141]/30 transition-colors">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/20">
+                    <FileText className="h-4 w-4 text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">Analyze Meeting</p>
+                    <p className="text-xs text-[#9D9D9D]">Extract action items</p>
+                  </div>
+                </button>
+              </Link>
             </div>
           </Card>
         </div>
